@@ -13,44 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {
-  useState,
-  useEffect,
-  useMemo,
-  useRef,
-  useCallback,
-  ChangeEvent,
-} from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Entity } from '@backstage/catalog-model';
 import { useApi, configApiRef } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
-
 import {
   Card,
   CardHeader,
-  CardContent,
-  TextField,
-  Typography,
-  CircularProgress,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  Divider,
-  IconButton,
+  CardBody,
   Avatar,
-  InputAdornment,
-} from '@material-ui/core';
-
-import { Alert } from '@material-ui/lab';
-import SearchIcon from '@material-ui/icons/Search';
-import PersonIcon from '@material-ui/icons/Person';
-import GroupIcon from '@material-ui/icons/Group';
-import AddIcon from '@material-ui/icons/Add';
-import { useParticipantsStyles } from './Styles';
+  TextField,
+  Text,
+  Box,
+  Skeleton,
+  Button,
+} from '@backstage/ui';
+import { RiUserLine, RiTeamLine, RiAddLine } from '@remixicon/react';
 import { ParticipantsList } from './List';
 import { EntityService } from './Service';
-import ClearIcon from '@material-ui/icons/Clear';
+import classes from './Participants.module.css';
 
 export interface Participant {
   id: string;
@@ -75,7 +56,6 @@ export const Participants = ({
   onParticipantsChange,
   initialParticipants = [],
 }: ParticipantsProps) => {
-  const classes = useParticipantsStyles();
   const catalogApi = useApi(catalogApiRef);
   const configApi = useApi(configApiRef);
   const searchLimit =
@@ -103,9 +83,7 @@ export const Participants = ({
   const [page, setPage] = useState<number>(0);
   const [hasMore, setHasMore] = useState<boolean>(true);
   const observerRef = useRef<IntersectionObserver | null>(null);
-  const loadingRef = useRef<HTMLDivElement | null>(null);
-  const totalEntitiesRef = useRef<number>(0);
-  const [totalItems, setTotalItems] = useState<number>(0);
+  const loadingRef = useRef<HTMLLIElement | null>(null);
 
   // Create service instance
   const entityService = useMemo(
@@ -113,9 +91,29 @@ export const Participants = ({
     [catalogApi],
   );
 
+  const visibleEntities = useMemo(() => {
+    const selectedIds = new Set(resolvedParticipants.map(p => p.id));
+
+    return entities.filter(entity => {
+      if (!entity.metadata.uid) {
+        return false;
+      }
+
+      if (selectedIds.has(entity.metadata.uid)) {
+        return false;
+      }
+
+      if (entity.kind === 'User' && excludedUsers.has(entity.metadata.uid)) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [entities, excludedUsers, resolvedParticipants]);
+
   // Handle intersection observer for infinite scrolling
   const lastElementRef = useCallback(
-    (node: HTMLDivElement | null) => {
+    (node: HTMLLIElement | null) => {
       if (loading) return;
       if (observerRef.current) observerRef.current.disconnect();
 
@@ -136,14 +134,12 @@ export const Participants = ({
       setEntities([]);
       setHasMore(true);
       setPage(0);
-      totalEntitiesRef.current = 0;
       return;
     }
 
     // Reset when search term changes
     if (page === 0) {
       setEntities([]);
-      totalEntitiesRef.current = 0;
     }
 
     const loadEntities = async () => {
@@ -163,17 +159,12 @@ export const Participants = ({
           setHasMore(true);
         }
 
-        // Update total items count
-        setTotalItems(fetchedEntities.totalItems);
-
         // Append entries instead of replacing them
         setEntities(prevEntities =>
           page === 0
             ? fetchedEntities.items
             : [...prevEntities, ...fetchedEntities.items],
         );
-
-        totalEntitiesRef.current += fetchedEntities.items.length;
       } catch (err) {
         setError(
           err instanceof Error ? err : new Error('Failed to load entities'),
@@ -188,8 +179,12 @@ export const Participants = ({
   }, [entityService, searchTerm, searchLimit, page]);
 
   // Handle search input with debounce
-  const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
+  const handleSearchChange = (valueOrEvent: unknown) => {
+    const value =
+      typeof valueOrEvent === 'string'
+        ? valueOrEvent
+        : (valueOrEvent as { target?: { value?: string } })?.target?.value ??
+          '';
     setInputValue(value); // Update input value immediately for responsiveness
 
     // Clear any existing timeout
@@ -203,7 +198,6 @@ export const Participants = ({
       setPage(0);
       setEntities([]);
       setHasMore(true);
-      totalEntitiesRef.current = 0;
       setSearchTerm(value);
     }, 300); // 300ms debounce
 
@@ -305,86 +299,46 @@ export const Participants = ({
     onParticipantsChange([]);
   };
 
-  // Add this function inside your component
-  const handleClearSearch = () => {
-    setSearchTerm('');
-    setInputValue(''); // Clear both states
-    setEntities([]);
-    setPage(0);
-    setHasMore(true);
-    totalEntitiesRef.current = 0;
-  };
-
   return (
     <Card>
       <CardHeader title="Participants" />
-      <CardContent>
+      <CardBody>
         {error && (
-          <Alert severity="error" className={classes.alert}>
-            {error.message}
-          </Alert>
+          <Box
+            style={{
+              padding: '16px',
+              marginBottom: '16px',
+              backgroundColor: '#fee',
+              border: '1px solid #fcc',
+              borderRadius: '4px',
+              color: '#c33',
+            }}
+          >
+            <Text>{error.message}</Text>
+          </Box>
         )}
 
         {/* Search field */}
-        <TextField
-          label="Search users and groups"
-          variant="outlined"
-          fullWidth
-          margin="normal"
-          value={inputValue}
-          onChange={handleSearchChange}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-            endAdornment: (
-              <InputAdornment position="end">
-                {loading && <CircularProgress size={20} />}
-                {!loading && searchTerm && (
-                  <IconButton
-                    aria-label="clear search"
-                    onClick={handleClearSearch}
-                    edge="end"
-                    size="small"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                )}
-              </InputAdornment>
-            ),
-          }}
-        />
+        <Box style={{ marginBottom: '16px' }}>
+          <TextField
+            label="Search users and groups"
+            value={inputValue}
+            onChange={handleSearchChange}
+            placeholder="Search users and groups"
+          />
+        </Box>
 
         {/* Search Results */}
-        {searchTerm && entities.length > 0 && (
-          <Card variant="outlined" className={classes.searchResults}>
-            <div className={classes.searchResultsHeader}>
-              <Typography
-                variant="subtitle2"
-                className={classes.searchResultsTitle}
-              >
-                {totalItems} results
-              </Typography>
-              <Divider />
+        {searchTerm && (visibleEntities.length > 0 || loading) && (
+          <Card className={classes.searchResults}>
+            <div>
+              <Text weight="bold" className={classes.resultsHeader}>
+                {visibleEntities.length} results
+              </Text>
+              <hr />
             </div>
-            <List className={classes.searchResultsList} dense>
-              {entities.map((entity, index) => {
-                // Skip if already selected
-                const isUserAlreadySelected = resolvedParticipants.some(
-                  p => p.id === entity.metadata.uid,
-                );
-
-                const isGroupMemberAlreadyExcluded =
-                  entity.kind === 'User' &&
-                  entity.metadata.uid &&
-                  excludedUsers.has(entity.metadata.uid);
-
-                if (isUserAlreadySelected || isGroupMemberAlreadyExcluded) {
-                  return null;
-                }
-
+            <ul className={classes.searchResultsList}>
+              {visibleEntities.map((entity, index) => {
                 const displayName =
                   // Type assertion to handle potential undefined values
                   (entity.spec as EntitySpec)?.profile?.displayName ||
@@ -392,70 +346,92 @@ export const Participants = ({
                   entity.metadata.name;
 
                 return (
-                  <ListItem
+                  <li
                     key={entity.metadata.uid}
-                    button
-                    // Apply ref to last element for infinite scrolling
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '8px 16px',
+                      borderBottom: '1px solid var(--bui-border)',
+                      cursor: 'pointer',
+                    }}
                     ref={
-                      index === entities.length - 1 ? lastElementRef : undefined
+                      index === visibleEntities.length - 1
+                        ? lastElementRef
+                        : undefined
                     }
                   >
                     <Avatar
+                      src=""
+                      name={displayName}
                       className={
                         entity.kind === 'Group'
                           ? classes.groupAvatar
                           : classes.userAvatar
                       }
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '40px',
+                        height: '40px',
+                        color: 'white',
+                        fontSize: '20px',
+                      }}
                     >
-                      {entity.kind === 'Group' ? <GroupIcon /> : <PersonIcon />}
+                      {entity.kind === 'Group' ? (
+                        <RiTeamLine size={20} />
+                      ) : (
+                        <RiUserLine size={20} />
+                      )}
                     </Avatar>
-                    <ListItemText
-                      primary={displayName}
-                      secondary={entity.kind}
-                    />
-                    <ListItemSecondaryAction>
-                      <IconButton
-                        edge="end"
-                        aria-label="add"
-                        onClick={() => handleAddEntity(entity)}
-                        disabled={processingGroups}
+                    <div style={{ flex: 1 }}>
+                      <Text>{displayName}</Text>
+                      <Text
+                        style={{
+                          fontSize: '12px',
+                          color: '#666',
+                          paddingLeft: '8px',
+                        }}
                       >
-                        <AddIcon />
-                      </IconButton>
-                    </ListItemSecondaryAction>
-                  </ListItem>
+                        {entity.kind}
+                      </Text>
+                    </div>
+                    <Button
+                      aria-label="Add participant"
+                      onClick={() => handleAddEntity(entity)}
+                      isDisabled={processingGroups}
+                    >
+                      <RiAddLine />
+                    </Button>
+                  </li>
                 );
               })}
               {/* Loading indicator for infinite scrolling */}
               {loading && (
-                <ListItem ref={loadingRef} button>
-                  <ListItemText
-                    secondary={
-                      <div style={{ textAlign: 'center', padding: '8px' }}>
-                        <CircularProgress size={20} />
-                      </div>
-                    }
-                  />
-                </ListItem>
+                <li
+                  ref={loadingRef}
+                  style={{ padding: '8px', textAlign: 'center' }}
+                >
+                  <Skeleton width="100%" height={24} />
+                </li>
               )}
-            </List>
+            </ul>
           </Card>
         )}
 
-        {searchTerm && !loading && entities.length === 0 && (
-          <Typography
-            variant="body2"
-            color="textSecondary"
-            className={classes.noResults}
-          >
-            No users or groups found. Try a different search term.
-          </Typography>
+        {searchTerm && !loading && visibleEntities.length === 0 && (
+          <Text style={{ padding: '16px', textAlign: 'center', color: '#666' }}>
+            {entities.length === 0
+              ? 'No users or groups found. Try a different search term.'
+              : 'All matching users and groups are already selected.'}
+          </Text>
         )}
 
         {processingGroups && (
           <div className={classes.processingContainer}>
-            <CircularProgress size={24} />
-            <Typography variant="body2">Processing group members...</Typography>
+            <Skeleton width={24} height={24} />
+            <Text>Processing group members...</Text>
           </div>
         )}
 
@@ -468,7 +444,7 @@ export const Participants = ({
             isProcessing={processingGroups}
           />
         </div>
-      </CardContent>
+      </CardBody>
     </Card>
   );
 };

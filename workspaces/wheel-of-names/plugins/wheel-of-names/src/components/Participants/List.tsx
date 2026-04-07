@@ -14,22 +14,9 @@
  * limitations under the License.
  */
 import { Fragment } from 'react';
-import {
-  Typography,
-  Button,
-  Paper,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  IconButton,
-  Divider,
-  Avatar,
-} from '@material-ui/core';
-import PersonIcon from '@material-ui/icons/Person';
-import DeleteIcon from '@material-ui/icons/Delete';
-import { useParticipantsStyles } from './Styles';
-import { Entity } from '@backstage/catalog-model';
+import { Text, Button } from '@backstage/ui';
+import { RiDeleteBin6Line } from '@remixicon/react';
+import classes from './Participants.module.css';
 
 interface Participant {
   id: string;
@@ -45,17 +32,12 @@ interface ParticipantsListProps {
   isProcessing: boolean;
 }
 
-export const ParticipantsList = (
-  {
-    participants,
-    onRemoveParticipant,
-    onClearAll,
-    isProcessing,
-  }: ParticipantsListProps,
-  entity: Entity,
-) => {
-  const classes = useParticipantsStyles();
-
+export const ParticipantsList = ({
+  participants,
+  onRemoveParticipant,
+  onClearAll,
+  isProcessing,
+}: ParticipantsListProps) => {
   const getParticipantClassName = (participant: Participant) => {
     return participant.fromGroup
       ? classes.groupMemberItem
@@ -69,60 +51,50 @@ export const ParticipantsList = (
   return (
     <div className={classes.selectedParticipantsContainer}>
       <div className={classes.participantsHeader}>
-        <Typography variant="subtitle1">
-          Selected Participants ({participants.length})
-        </Typography>
+        <Text weight="bold">Selected Participants ({participants.length})</Text>
 
-        <Button
-          variant="outlined"
-          color="secondary"
-          size="small"
-          onClick={onClearAll}
-          disabled={isProcessing}
-          startIcon={<DeleteIcon />}
-        >
+        <Button onClick={onClearAll} isDisabled={isProcessing}>
           Clear All
         </Button>
       </div>
 
-      <Paper className={classes.selectedParticipantsList}>
-        <List dense>
+      <div className={classes.selectedParticipantsList}>
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {participants.map(participant => (
             <Fragment key={participant.id}>
-              <ListItem className={getParticipantClassName(participant)}>
-                <Avatar
-                  className={
-                    entity.kind === 'Group'
-                      ? classes.groupAvatar
-                      : classes.userAvatar
-                  }
+              <li
+                className={getParticipantClassName(participant)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '12px 16px',
+                  borderBottom: '1px solid var(--bui-border)',
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <Text>{participant.displayName || participant.name}</Text>
+                  {participant.fromGroup && (
+                    <Text
+                      variant="body-small"
+                      className={classes.groupInfoText}
+                    >
+                      From group: {participant.fromGroup}
+                    </Text>
+                  )}
+                </div>
+                <Button
+                  variant="secondary"
+                  aria-label="Remove participant"
+                  onClick={() => onRemoveParticipant(participant.id)}
+                  isDisabled={isProcessing}
                 >
-                  <PersonIcon />
-                </Avatar>
-                <ListItemText
-                  primary={participant.displayName || participant.name}
-                  secondary={
-                    participant.fromGroup
-                      ? `From group: ${participant.fromGroup}`
-                      : undefined
-                  }
-                />
-                <ListItemSecondaryAction>
-                  <IconButton
-                    edge="end"
-                    aria-label="delete"
-                    onClick={() => onRemoveParticipant(participant.id)}
-                    disabled={isProcessing}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </ListItemSecondaryAction>
-              </ListItem>
-              <Divider component="li" />
+                  <RiDeleteBin6Line size={18} />
+                </Button>
+              </li>
             </Fragment>
           ))}
-        </List>
-      </Paper>
+        </ul>
+      </div>
     </div>
   );
 };

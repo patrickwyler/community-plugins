@@ -14,36 +14,15 @@
  * limitations under the License.
  */
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { makeStyles } from '@material-ui/core/styles';
-import { Button, Dialog, DialogContent, DialogTitle } from '@material-ui/core';
+import {
+  Button,
+  Dialog,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+} from '@backstage/ui';
 import confetti from 'canvas-confetti';
-
-const useStyles = makeStyles(theme => ({
-  container: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '1rem',
-  },
-  canvas: {
-    margin: '20px',
-  },
-  button: {
-    marginTop: '20px',
-  },
-  winnerContent: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    padding: theme.spacing(3),
-  },
-  winnerName: {
-    fontSize: '1.5rem',
-    fontWeight: 'bold',
-    textAlign: 'center',
-    margin: theme.spacing(2),
-  },
-}));
+import classes from './Wheel.module.css';
 
 interface Participant {
   id: string;
@@ -56,7 +35,6 @@ interface WheelProps {
 }
 
 export const Wheel = ({ participants }: WheelProps) => {
-  const classes = useStyles();
   const [rotation, setRotation] = useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
@@ -117,8 +95,7 @@ export const Wheel = ({ participants }: WheelProps) => {
       ctx.arc(0, 0, radius, startAngle, endAngle);
       ctx.closePath();
 
-      const color = colors[i % colors.length];
-      ctx.fillStyle = color;
+      ctx.fillStyle = colors[i % colors.length];
       ctx.fill();
 
       // Draw text
@@ -198,13 +175,13 @@ export const Wheel = ({ participants }: WheelProps) => {
 
   useEffect(() => {
     if (!showPopup) {
-      return; // Early return if showPopup is false
+      return undefined;
     }
 
     startConfetti();
     const timer = setTimeout(() => setShowPopup(false), 5000);
 
-    clearTimeout(timer);
+    return () => clearTimeout(timer);
   }, [showPopup]);
 
   useEffect(() => {
@@ -217,34 +194,26 @@ export const Wheel = ({ participants }: WheelProps) => {
     <div className={classes.container}>
       <canvas
         ref={canvasRef}
-        width={600} // Increased width
+        width={600}
         height={600}
         className={classes.canvas}
       />
-      <Button
-        variant="contained"
-        color="primary"
-        onClick={startSpin}
-        disabled={isSpinning}
-        className={classes.button}
-      >
+      <Button onClick={startSpin} isDisabled={isSpinning}>
         {isSpinning ? 'Spinning...' : 'Spin!'}
       </Button>
-      <Dialog open={showPopup} onClose={() => setShowPopup(false)}>
-        <DialogTitle>We have a winner!</DialogTitle>
-        <DialogContent className={classes.winnerContent}>
-          <div className={classes.winnerName}>
-            {popupWinner ? popupWinner.displayName || popupWinner.name : ''}
-          </div>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => setShowPopup(false)}
-          >
-            Close
-          </Button>
-        </DialogContent>
-      </Dialog>
+      {showPopup && (
+        <Dialog isOpen={showPopup} onOpenChange={setShowPopup} isDismissable>
+          <DialogHeader>We have a winner!</DialogHeader>
+          <DialogBody>
+            <div className={classes.winnerName}>
+              {popupWinner ? popupWinner.displayName || popupWinner.name : ''}
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button onClick={() => setShowPopup(false)}>Close</Button>
+          </DialogFooter>
+        </Dialog>
+      )}
     </div>
   );
 };
